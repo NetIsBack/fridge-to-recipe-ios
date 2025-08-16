@@ -32,13 +32,21 @@ struct MainTabView: View {
                 }
                 .tag(2)
                 .environmentObject(appData)
-            
+
+            MealPlannerView()
+                .tabItem {
+                    Image(systemName: "calendar")
+                    Text("Planner")
+                }
+                .tag(3)
+                .environmentObject(appData)
+
             CollaborativeShoppingView()
                 .tabItem {
                     Image(systemName: "person.2.fill")
                     Text("Collaborate")
                 }
-                .tag(3)
+                .tag(4)
                 .environmentObject(appData)
         }
         .accentColor(.blue)
