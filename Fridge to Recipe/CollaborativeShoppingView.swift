@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct CollaborativeShoppingView: View {
+    @EnvironmentObject var appData: AppDataModel
+    @EnvironmentObject var shoppingList: ShoppingListViewModel
     @StateObject private var collaborativeService = CollaborativeService()
     @State private var showAuthSheet = false
     @State private var showCreateList = false
@@ -62,6 +64,9 @@ struct CollaborativeShoppingView: View {
         }
         .sheet(isPresented: $showAccountSheet) {
             AccountManagementView(collaborativeService: collaborativeService)
+        }
+        .onAppear {
+            shoppingList.updateSmartList(from: appData.mealPlans, recipes: appData.recipes)
         }
     }
     

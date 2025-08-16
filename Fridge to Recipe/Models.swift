@@ -10,6 +10,7 @@ import SwiftUI
 import UserNotifications
 import Vision
 import VisionKit
+import FirebaseFirestore
 
 // MARK: - Models
 struct IngredientEntry: Identifiable, Equatable, Codable {
@@ -98,6 +99,18 @@ struct RecipeMatch: Identifiable, Equatable {
     let isExact: Bool
 }
 
+struct MealPlan: Identifiable, Codable, Equatable {
+    let id: String
+    var date: Date
+    var recipeIDs: [UUID]
+
+    init(id: String = UUID().uuidString, date: Date, recipeIDs: [UUID] = []) {
+        self.id = id
+        self.date = date
+        self.recipeIDs = recipeIDs
+    }
+}
+
 struct ShoppingListItem: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
@@ -127,6 +140,11 @@ class AppDataModel: ObservableObject {
     @Published var favouriteRecipeIDs: [UUID] = [] {
         didSet { saveFavourites() }
     }
+    @Published var mealPlans: [MealPlan] = [] {
+        didSet { saveMealPlans() }
+    }
+
+    private let db = Firestore.firestore()
 
     init() {
         // Load ingredients
@@ -139,6 +157,12 @@ class AppDataModel: ObservableObject {
            let saved = try? JSONDecoder().decode([UUID].self, from: data) {
             self.favouriteRecipeIDs = saved
         }
+        // Load meal plans
+        if let data = UserDefaults.standard.data(forKey: "mealPlans"),
+           let saved = try? JSONDecoder().decode([MealPlan].self, from: data) {
+            self.mealPlans = saved
+        }
+        loadMealPlansFromFirestore()
     }
     
     func scheduleExpiryNotification(for ingredient: IngredientEntry) {
@@ -157,6 +181,36 @@ class AppDataModel: ObservableObject {
     func cancelExpiryNotification(for ingredient: IngredientEntry) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["expiry-\(ingredient.id)"])
     }
+
+    func scheduleMealNotification(for plan: MealPlan) {
+        let content = UNMutableNotificationContent()
+        content.title = "Meal Reminder"
+        if let first = plan.recipeIDs.first,
+           let recipe = recipes.first(where: { $0.id == first }) {
+            content.body = "Don't forget: \(recipe.name) today!"
+        } else {
+            content.body = "You have meals planned today!"
+        }
+        content.sound = .default
+        let triggerDate = Calendar.current.dateComponents([.year, .month, .day], from: plan.date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+        let request = UNNotificationRequest(identifier: "meal-\(plan.id)", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func addRecipe(_ recipeID: UUID, to date: Date) {
+        if let index = mealPlans.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+            if !mealPlans[index].recipeIDs.contains(recipeID) {
+                mealPlans[index].recipeIDs.append(recipeID)
+                persistMealPlan(mealPlans[index])
+            }
+        } else {
+            let plan = MealPlan(date: date, recipeIDs: [recipeID])
+            mealPlans.append(plan)
+            persistMealPlan(plan)
+            scheduleMealNotification(for: plan)
+        }
+    }
     
     private func saveIngredients() {
         // Save ingredients asynchronously to avoid blocking UI
@@ -167,6 +221,14 @@ class AppDataModel: ObservableObject {
             }
         }
     }
+    private func saveMealPlans() {
+        let plans = mealPlans
+        DispatchQueue.global(qos: .background).async {
+            if let data = try? JSONEncoder().encode(plans) {
+                UserDefaults.standard.set(data, forKey: "mealPlans")
+            }
+        }
+    }
     private func saveFavourites() {
         // Save favorites synchronously for immediate persistence and data reliability
         if let data = try? JSONEncoder().encode(favouriteRecipeIDs) {
@@ -174,6 +236,20 @@ class AppDataModel: ObservableObject {
             // Force synchronization to ensure data is written immediately
             UserDefaults.standard.synchronize()
         }
+    }
+
+    private func loadMealPlansFromFirestore() {
+        db.collection("mealPlans").addSnapshotListener { snapshot, _ in
+            guard let documents = snapshot?.documents else { return }
+            self.mealPlans = documents.compactMap {
+                try? Firestore.Decoder().decode(MealPlan.self, from: $0.data())
+            }
+        }
+    }
+
+    private func persistMealPlan(_ plan: MealPlan) {
+        guard let data = try? Firestore.Encoder().encode(plan) else { return }
+        db.collection("mealPlans").document(plan.id).setData(data)
     }
     
     // MARK: - Optimized Favorite Methods
@@ -279,7 +355,13 @@ class ShoppingListViewModel: ObservableObject {
             UserDefaults.standard.set(data, forKey: "manualLists")
         }
     }
-    
+
+    func updateSmartList(from mealPlans: [MealPlan], recipes: [Recipe]) {
+        let upcomingIDs = mealPlans.filter { $0.date >= Date() }.flatMap { $0.recipeIDs }
+        let upcomingRecipes = recipes.filter { upcomingIDs.contains($0.id) }
+        smartListItems = Array(Set(upcomingRecipes.flatMap { $0.ingredients }))
+    }
+
     // MARK: - Price Tracking Methods
     func getTotalPrice(for listName: String) -> Double {
         if listName == "Smart List" {
