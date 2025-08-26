@@ -54,7 +54,7 @@ struct CookNowView: View {
                     Text("Upcoming Steps:")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    ForEach(timerManager.steps.dropFirst(timerManager.currentStepIndex + 1)) { step in
+                    ForEach(Array(timerManager.steps.dropFirst(timerManager.currentStepIndex + 1)), id: \.id) { step in
                         HStack {
                             Text(step.name)
                             Spacer()
@@ -81,7 +81,7 @@ struct CookNowView: View {
         .onDisappear {
             timerManager.stop()
         }
-        .onChange(of: timerManager.isComplete) { _, complete in
+        .onChange(of: timerManager.isComplete) { complete in
             if complete {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                     showCelebration = true

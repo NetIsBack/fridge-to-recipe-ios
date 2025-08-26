@@ -7,6 +7,7 @@ struct CelebrationView: View {
 
     var body: some View {
         ZStack {
+            ConfettiView()
             VStack(spacing: 32) {
                 Spacer()
                 Text("🎉 Recipe Complete! 🎉")
@@ -54,7 +55,7 @@ struct ConfettiView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                ForEach(0..<20) { i in
+                ForEach(0..<20, id: \.self) { i in
                     Circle()
                         .fill(confettiColors[i % confettiColors.count])
                         .frame(width: 12, height: 12)
