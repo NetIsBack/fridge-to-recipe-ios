@@ -54,7 +54,7 @@ struct CookNowView: View {
                     Text("Upcoming Steps:")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    ForEach(timerManager.steps.dropFirst(timerManager.currentStepIndex + 1)) { step in
+                    ForEach(Array(timerManager.steps.dropFirst(timerManager.currentStepIndex + 1)), id: \.id) { step in
                         HStack {
                             Text(step.name)
                             Spacer()
@@ -81,7 +81,7 @@ struct CookNowView: View {
         .onDisappear {
             timerManager.stop()
         }
-        .onChange(of: timerManager.isComplete) { _, complete in
+        .onChange(of: timerManager.isComplete) { complete in
             if complete {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                     showCelebration = true
@@ -193,82 +193,6 @@ struct CookNowStepView: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 }
-
-struct CelebrationView: View {
-    var onDone: () -> Void
-    @State private var showCheck = false
-    
-    var body: some View {
-        ZStack {
-            VStack(spacing: 32) {
-                Spacer()
-                Text("🎉 Recipe Complete! 🎉")
-                    .font(.largeTitle).bold()
-                    .multilineTextAlignment(.center)
-                    .scaleEffect(showCheck ? 1.1 : 1.0)
-                    .animation(.interpolatingSpring(stiffness: 200, damping: 10), value: showCheck)
-                if showCheck {
-                    Image(systemName: "checkmark.seal.fill")
-                        .resizable()
-                        .frame(width: 80, height: 80)
-                        .foregroundColor(.green)
-                        .scaleEffect(showCheck ? 1.2 : 0.8)
-                        .animation(.interpolatingSpring(stiffness: 200, damping: 10), value: showCheck)
-                }
-                Text("You finished all the steps! Great job.")
-                    .font(.title2)
-                    .foregroundColor(.primary)
-                Button("Done") {
-                    onDone()
-                }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(colors: [Color.orange, Color.pink], startPoint: .leading, endPoint: .trailing)
-                )
-                .clipShape(Capsule())
-                .foregroundColor(.white)
-                Spacer()
-            }
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                showCheck = true
-            }
-        }
-    }
-}
-
-struct ConfettiView: View {
-    @State private var animate = false
-    let confettiColors: [Color] = [.orange, .pink, .yellow, .green, .blue, .purple]
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                ForEach(0..<20) { i in
-                    Circle()
-                        .fill(confettiColors[i % confettiColors.count])
-                        .frame(width: 12, height: 12)
-                        .position(
-                            x: CGFloat.random(in: 0...geo.size.width),
-                            y: animate ? geo.size.height + 20 : CGFloat.random(in: 0...geo.size.height/2)
-                        )
-                        .opacity(0.8)
-                        .animation(
-                            .interpolatingSpring(stiffness: 80, damping: 8)
-                                .delay(Double(i) * 0.05),
-                            value: animate
-                        )
-                }
-            }
-            .onAppear {
-                animate = true
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 // Preview
 struct CookNowView_Previews: PreviewProvider {
     static var previews: some View {
